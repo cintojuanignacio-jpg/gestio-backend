@@ -1,0 +1,12 @@
+anthropic==0.20.0
+python-telegram-bot==20.7
+google-api-python-client==2.111.0
+google-auth==2.27.0
+google-auth-httplib2==0.2.0
+gspread==6.0.2
+fastapi==0.109.2
+uvicorn==0.27.1
+python-multipart==0.0.9
+python-dotenv==1.0.1
+pdf2image==1.17.0
+pillow==10.2.0
