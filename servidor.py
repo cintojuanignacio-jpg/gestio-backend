@@ -77,8 +77,10 @@ async def health():
 
 @app.post("/procesar-factura")
 async def endpoint_procesar_factura(
-    archivo: UploadFile = File(...),
-    origen:  str        = Form(default="web")
+    archivo:        UploadFile = File(...),
+    origen:         str        = Form(default="web"),
+    sheet_id:       str        = Form(default=""),
+    cliente_nombre: str        = Form(default="")
 ):
     """
     Recibe un archivo (PDF, JPG, PNG) desde el chat web,
@@ -107,10 +109,18 @@ async def endpoint_procesar_factura(
         tmp_path = tmp.name
 
     try:
+        # Usar sheet_id del cliente si viene en el request
+        import os
+        sheet_usado = sheet_id or SHEET_ID
+        cliente_usado = cliente_nombre or CLIENTE_NOMBRE
+
+        # Override SHEET_ID temporalmente para este request
+        os.environ['GOOGLE_SHEET_ID'] = sheet_usado
+
         resultado = procesar_factura(
             archivo_path=tmp_path,
             origen=origen,
-            cliente_nombre=CLIENTE_NOMBRE,
+            cliente_nombre=cliente_usado,
             drive_root_id=DRIVE_ROOT_ID,
         )
         return JSONResponse(content=resultado)
