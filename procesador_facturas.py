@@ -1,25 +1,31 @@
 """
-╔══════════════════════════════════════════════════════════════╗
-║  GESTIO · Procesador de Facturas con IA  v2                  ║
-║  Con memoria de proveedores + Google Drive                   ║
-╚══════════════════════════════════════════════════════════════╝
+GESTIO · Procesador de Facturas con IA v2
+Con memoria de proveedores + Google Drive
 """
 
 import os, base64, json, re
 from datetime import date, datetime
 from pathlib import Path
-
-import anthropic
 from dotenv import load_dotenv
+
+load_dotenv()
+
+# Inicializar claude de forma lazy para que lea las variables correctamente
+_claude = None
+
+def get_claude():
+    global _claude
+    if _claude is None:
+        import anthropic
+        _claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    return _claude
+
 from sheets_manager import grabar_factura
 from drive_manager import (
     subir_factura_drive,
     contexto_proveedor_para_ia,
     registrar_factura_en_memoria,
 )
-
-load_dotenv()
-claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 SHEET_ID       = os.environ.get("GOOGLE_SHEET_ID", "")
 DRIVE_ROOT_ID  = os.environ.get("GOOGLE_DRIVE_ROOT_ID", "")
@@ -78,14 +84,14 @@ def procesar_factura(
     except Exception as e:
         return {"exito": False, "error": f"Error al leer el archivo: {e}"}
 
-    # Primera pasada sin contexto específico
+    # Primera pasada sin contexto
     try:
         raw, tokens = _llamar_claude(img_b64, media_type, archivo.suffix.lower(), "")
         datos = _validar(_parsear(raw))
     except Exception as e:
         return {"exito": False, "error": f"Error en Claude API: {e}"}
 
-    # Segunda pasada con contexto del proveedor si la confianza es baja
+    # Segunda pasada con contexto si confianza baja
     if SHEET_ID and datos.get("proveedor_nombre") and datos["confianza"] < 0.80:
         ctx = contexto_proveedor_para_ia(
             SHEET_ID,
@@ -116,7 +122,7 @@ def procesar_factura(
         except Exception as e:
             drive_info = {"error": str(e)}
 
-    # Grabar en Google Sheets
+    # Grabar en Sheets
     fila = None
     if SHEET_ID:
         try:
@@ -124,7 +130,7 @@ def procesar_factura(
         except Exception as e:
             return {"exito": False, "error": f"Error al grabar en Sheets: {e}", "datos": datos}
 
-    # Actualizar memoria de proveedores
+    # Actualizar memoria
     if SHEET_ID:
         try:
             registrar_factura_en_memoria(SHEET_ID, datos, fue_corregida=False)
@@ -145,11 +151,15 @@ def procesar_factura(
 def _preparar(archivo: Path) -> tuple:
     ext = archivo.suffix.lower()
     if ext == ".pdf":
-        from pdf2image import convert_from_path
-        from io import BytesIO
-        buf = BytesIO()
-        convert_from_path(str(archivo), dpi=200)[0].save(buf, format="JPEG", quality=85)
-        return base64.standard_b64encode(buf.getvalue()).decode(), "image/jpeg"
+        try:
+            from pdf2image import convert_from_path
+            from io import BytesIO
+            buf = BytesIO()
+            convert_from_path(str(archivo), dpi=200)[0].save(buf, format="JPEG", quality=85)
+            return base64.standard_b64encode(buf.getvalue()).decode(), "image/jpeg"
+        except Exception:
+            # Si pdf2image no está disponible, leer el PDF directamente
+            return base64.standard_b64encode(archivo.read_bytes()).decode(), "application/pdf"
     elif ext in (".jpg", ".jpeg"):
         return base64.standard_b64encode(archivo.read_bytes()).decode(), "image/jpeg"
     elif ext == ".png":
@@ -158,6 +168,7 @@ def _preparar(archivo: Path) -> tuple:
 
 
 def _llamar_claude(img_b64: str, media_type: str, ext: str, contexto: str) -> tuple:
+    claude = get_claude()
     prompt = PROMPT_BASE.format(contexto_proveedor=contexto)
     r = claude.messages.create(
         model="claude-sonnet-4-6", max_tokens=1000,
@@ -206,7 +217,6 @@ def _mensaje(d: dict, fila, drive: dict) -> str:
     total = round(base + cuota, 2)
     conf  = int(d["confianza"] * 100)
     emoji = "✅" if conf >= 75 else "⚠️"
-
     lineas = [
         f"{emoji} Factura procesada",
         f"Proveedor: {d.get('proveedor_nombre','Desconocido')}",
