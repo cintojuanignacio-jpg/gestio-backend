@@ -282,15 +282,19 @@ async def endpoint_inicializar_sheet(sheet_id: str = Form(...)):
         import json as json_mod
         from google.oauth2.service_account import Credentials as SACredentials
 
+        import base64 as b64mod
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        creds_b64 = os.environ.get('GOOGLE_CREDENTIALS_B64')
         creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
-        if creds_json_str:
+        if creds_b64:
+            creds_info = json_mod.loads(b64mod.b64decode(creds_b64).decode())
+            creds = SACredentials.from_service_account_info(creds_info, scopes=SCOPES)
+        elif creds_json_str:
             creds_info = json_mod.loads(creds_json_str)
-            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-            creds  = SACredentials.from_service_account_info(creds_info, scopes=SCOPES)
+            creds = SACredentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
             creds_file = os.environ.get('GOOGLE_CREDENTIALS_FILE', 'credenciales_google.json')
-            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-            creds  = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
+            creds = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
         svc = build('sheets', 'v4', credentials=creds)
 
         CABECERAS = [
@@ -342,12 +346,15 @@ async def endpoint_inicializar_sheet(sheet_id: str = Form(...)):
 @app.get("/debug-creds")
 async def debug_creds():
     """Diagnóstico de credenciales — borrar después de usar"""
+    import base64 as b64mod
+    creds_b64 = os.environ.get('GOOGLE_CREDENTIALS_B64')
     creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
-    if not creds_json:
-        return {"error": "GOOGLE_CREDENTIALS_JSON no encontrada", "vars": list(os.environ.keys())}
+    raw = creds_b64 or creds_json
+    if not raw:
+        return {"error": "No se encontro ninguna variable de credenciales", "vars": [v for v in os.environ.keys() if 'GOOGLE' in v or 'CRED' in v]}
     try:
         import json
-        data = json.loads(creds_json)
+        data = json.loads(b64mod.b64decode(raw).decode() if creds_b64 else raw)
         return {
             "ok": True,
             "type": data.get("type"),
