@@ -338,6 +338,26 @@ async def endpoint_inicializar_sheet(sheet_id: str = Form(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/debug-creds")
+async def debug_creds():
+    """Diagnóstico de credenciales — borrar después de usar"""
+    creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+    if not creds_json:
+        return {"error": "GOOGLE_CREDENTIALS_JSON no encontrada", "vars": list(os.environ.keys())}
+    try:
+        import json
+        data = json.loads(creds_json)
+        return {
+            "ok": True,
+            "type": data.get("type"),
+            "project_id": data.get("project_id"),
+            "client_email": data.get("client_email"),
+            "len": len(creds_json)
+        }
+    except Exception as e:
+        return {"error": str(e), "primeros_chars": creds_json[:50]}
+
 if __name__ == "__main__":
     import uvicorn
     puerto = int(os.environ.get("PORT", 8000))
