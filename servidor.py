@@ -1,4 +1,3 @@
-"""
 ╔══════════════════════════════════════════════════════════════╗
 ║  GESTIO · Backend Web  — servidor.py                         ║
 ║                                                              ║
@@ -293,19 +292,20 @@ async def endpoint_inicializar_sheet(sheet_id: str = Form(...)):
         from googleapiclient.discovery import build
         import json
 
-        # Load credentials
-        creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
-        if creds_json:
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                f.write(creds_json)
-                creds_file = f.name
+        # Load credentials from env variable or file
+        import json as json_mod
+        from google.oauth2.service_account import Credentials as SACredentials
+
+        creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        if creds_json_str:
+            creds_info = json_mod.loads(creds_json_str)
+            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+            creds  = SACredentials.from_service_account_info(creds_info, scopes=SCOPES)
         else:
             creds_file = os.environ.get('GOOGLE_CREDENTIALS_FILE', 'credenciales_google.json')
-
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-        creds  = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
-        svc    = build('sheets', 'v4', credentials=creds)
+            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+            creds  = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
+        svc = build('sheets', 'v4', credentials=creds)
 
         CABECERAS = [
             'Fecha', 'Proveedor', 'NIF Proveedor', 'Numero Factura',
