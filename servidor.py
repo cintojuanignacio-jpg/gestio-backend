@@ -1,17 +1,3 @@
-╔══════════════════════════════════════════════════════════════╗
-║  GESTIO · Backend Web  — servidor.py                         ║
-║                                                              ║
-║  Endpoints:                                                  ║
-║  POST /procesar-factura   → sube archivo, devuelve datos     ║
-║  POST /corregir           → guarda corrección manual         ║
-║  POST /chat               → responde preguntas del chatbot   ║
-║  GET  /resumen            → KPIs del mes actual              ║
-║  GET  /iva                → estado IVA trimestre             ║
-║  GET  /pendientes         → facturas pendientes              ║
-║  GET  /health             → estado del servidor              ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-
 import os
 import shutil
 import tempfile
