@@ -281,6 +281,77 @@ def _nombre_mes():
 
 # ── ARRANQUE ─────────────────────────────────────────────────
 
+
+@app.post("/inicializar-sheet")
+async def endpoint_inicializar_sheet(sheet_id: str = Form(...)):
+    """
+    Inicializa un Google Sheet nuevo con la estructura correcta.
+    Se llama cuando un cliente configura su Sheet por primera vez.
+    """
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+        import json
+
+        # Load credentials
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        if creds_json:
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                f.write(creds_json)
+                creds_file = f.name
+        else:
+            creds_file = os.environ.get('GOOGLE_CREDENTIALS_FILE', 'credenciales_google.json')
+
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        creds  = Credentials.from_service_account_file(creds_file, scopes=SCOPES)
+        svc    = build('sheets', 'v4', credentials=creds)
+
+        CABECERAS = [
+            'Fecha', 'Proveedor', 'NIF Proveedor', 'Numero Factura',
+            'Descripcion', 'Categoria', 'Subcategoria',
+            'Base Imponible (€)', 'IVA %', 'Cuota IVA (€)', 'Total (€)',
+            'Estado', 'Confianza IA (%)', 'Canal', 'Notas', 'URL Archivo'
+        ]
+
+        # Get existing sheets
+        meta  = svc.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        hojas = [h['properties']['title'] for h in meta.get('sheets', [])]
+
+        requests = []
+        if 'Facturas_Compras' not in hojas:
+            requests.append({'addSheet': {'properties': {'title': 'Facturas_Compras'}}})
+        if 'Proveedores_Memoria' not in hojas:
+            requests.append({'addSheet': {'properties': {'title': 'Proveedores_Memoria'}}})
+
+        if requests:
+            svc.spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={'requests': requests}
+            ).execute()
+
+        # Add headers
+        svc.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range='Facturas_Compras!A1:P1',
+            valueInputOption='USER_ENTERED',
+            body={'values': [CABECERAS]}
+        ).execute()
+
+        PROV_CABECERAS = ['Nombre','NIF','IVA_Habitual','Categoria','Subcategoria',
+                          'Total_Facturas','Aciertos_IA','Ultima_Correccion','Notas']
+        svc.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range='Proveedores_Memoria!A1:I1',
+            valueInputOption='USER_ENTERED',
+            body={'values': [PROV_CABECERAS]}
+        ).execute()
+
+        return {"exito": True, "mensaje": "Sheet inicializado correctamente"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     puerto = int(os.environ.get("PORT", 8000))
