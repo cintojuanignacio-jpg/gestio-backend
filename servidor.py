@@ -138,34 +138,38 @@ async def procesar_factura(
         if user_id:
             row["user_id"] = user_id
 
-        # Insert into Supabase if we have service key and user_id
+        # Check for duplicates before inserting
         guardado = False
+        duplicado = False
         if SUPABASE_KEY and user_id:
             try:
-                supabase_insert("facturas", row)
-                guardado = True
+                # Check if same proveedor + fecha + total already exists
+                check_url = f"{SUPABASE_URL}/rest/v1/facturas?user_id=eq.{user_id}&proveedor=eq.{row.get('proveedor','')}&fecha=eq.{row.get('fecha','')}&total=eq.{row.get('total',0)}"
+                headers = {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}"
+                }
+                check_r = httpx.get(check_url, headers=headers)
+                existing = check_r.json() if check_r.status_code == 200 else []
+                
+                if existing:
+                    duplicado = True
+                else:
+                    supabase_insert("facturas", row)
+                    guardado = True
             except Exception as e:
                 print(f"Error guardando en Supabase: {e}")
 
         # Build response message
-        msg = f"""✅ Factura procesada correctamente
-
-📅 Fecha: {datos.get('fecha', 'No detectada')}
-🏪 Proveedor: {datos.get('proveedor', 'No detectado')}
-📋 Descripcion: {datos.get('descripcion', '-')}
-🏷️ Categoria: {datos.get('categoria', 'otros')}
-
-💰 Base imponible: {datos.get('base_imponible', 0)} EUR
-📊 IVA ({datos.get('iva_pct', 21)}%): {datos.get('cuota_iva', 0)} EUR
-💵 Total: {datos.get('total', 0)} EUR
-
-🤖 Confianza IA: {datos.get('confianza_ia', 0)}%
-{'✅ Guardada en base de datos' if guardado else '⚠️ No se pudo guardar (falta configuracion)'}"""
-
+        if duplicado:
+            msg = f"Duplicada: {datos.get('proveedor','?')} {datos.get('fecha','')} {datos.get('total',0)} EUR ya existe."
+        else:
+            msg = f"{datos.get('proveedor','?')} - {datos.get('fecha','')} - {datos.get('total',0)} EUR - {'Guardada' if guardado else 'Error al guardar'}" 
         return {
-            "exito":   True,
-            "mensaje": msg,
-            "datos":   datos,
+            "exito":    guardado,
+            "duplicado": duplicado,
+            "mensaje":  msg,
+            "datos":    datos,
             "guardado": guardado
         }
 
