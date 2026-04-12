@@ -129,7 +129,7 @@ async def procesar_factura(
             "iva_pct":        float(datos.get("iva_pct") or 21),
             "cuota_iva":      float(datos.get("cuota_iva") or 0),
             "total":          float(datos.get("total") or 0),
-            "estado":         "pendiente",
+            "estado":         "verificada" if float(datos.get("confianza_ia", 0)) >= 85 else "pendiente",
             "confianza_ia":   float(datos.get("confianza_ia") or 0),
             "canal":          origen,
         }
@@ -161,10 +161,14 @@ async def procesar_factura(
                 print(f"Error guardando en Supabase: {e}")
 
         # Build response message
+        confianza = float(datos.get('confianza_ia', 0))
         if duplicado:
-            msg = f"Duplicada: {datos.get('proveedor','?')} {datos.get('fecha','')} {datos.get('total',0)} EUR ya existe."
+            msg = f"Factura duplicada: {datos.get('proveedor','?')} del {datos.get('fecha','')} por {datos.get('total',0)} EUR ya existe en el sistema y no se guardo."
+        elif guardado:
+            estado_txt = "Verificada" if confianza >= 85 else "Pendiente de revision"
+            msg = f"OK: {datos.get('proveedor','?')} | {datos.get('fecha','')} | {datos.get('total',0)} EUR | IVA {datos.get('iva_pct',21)}% | Confianza {int(confianza)}% | {estado_txt}"
         else:
-            msg = f"{datos.get('proveedor','?')} - {datos.get('fecha','')} - {datos.get('total',0)} EUR - {'Guardada' if guardado else 'Error al guardar'}" 
+            msg = f"Error al guardar la factura de {datos.get('proveedor','?')}." 
         return {
             "exito":    guardado,
             "duplicado": duplicado,
