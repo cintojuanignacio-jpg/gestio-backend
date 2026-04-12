@@ -214,7 +214,10 @@ async def debug_creds():
         "supabase_url":    SUPABASE_URL,
         "supabase_key_ok": bool(SUPABASE_KEY),
         "anthropic_ok":    bool(ANTHROPIC_API_KEY),
-        "version":         "2.0"
+        "version":         "2.0",
+        "all_vars":        list(os.environ.keys()),
+        "anthropic_raw":   os.environ.get("ANTHROPIC_API_KEY", "NOT_FOUND")[:10],
+        "supabase_raw":    os.environ.get("SUPABASE_SERVICE_KEY", "NOT_FOUND")[:10],
     }
 
 if __name__ == "__main__":
