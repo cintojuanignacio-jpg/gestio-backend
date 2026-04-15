@@ -216,23 +216,27 @@ async def eliminar_factura(factura_id: str, user_id: str = ""):
         facturas = sb_get("facturas", f"id=eq.{factura_id}")
         factura = facturas[0] if facturas else {}
 
-        # Soft delete
+        # Soft delete via PATCH
+        headers = sb_headers()
+        headers["Prefer"] = "return=minimal"
         r = httpx.patch(
-            f"{SUPABASE_URL}/rest/v1/facturas?id=eq.{factura_id}",
+            f"{SUPABASE_URL}/rest/v1/facturas",
+            params={"id": f"eq.{factura_id}"},
             json={"eliminada": True, "eliminada_en": datetime.utcnow().isoformat()},
-            headers=sb_headers()
+            headers=headers
         )
-        r.raise_for_status()
+        if r.status_code not in [200, 204]:
+            raise Exception(f"Supabase error: {r.status_code} {r.text}")
 
-        # Log
+        # Log auditoria
         log_auditoria(
             user_id or factura.get("user_id"),
-            factura.get("numero_factura") or factura.get("descripcion",""),
+            factura.get("numero_factura") or factura.get("descripcion") or "factura",
             "web",
             "eliminada",
             {
                 "proveedor":    factura.get("proveedor"),
-                "fecha":        str(factura.get("fecha","")),
+                "fecha":        str(factura.get("fecha") or ""),
                 "total":        factura.get("total"),
                 "confianza_ia": factura.get("confianza_ia")
             },
@@ -240,6 +244,7 @@ async def eliminar_factura(factura_id: str, user_id: str = ""):
         )
         return {"exito": True}
     except Exception as e:
+        print(f"Error eliminando factura {factura_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/facturas/{user_id}")
