@@ -39,11 +39,14 @@ def sb_headers():
 def buscar_cliente_por_chat_id(chat_id: str):
     """Busca el cliente en Supabase por su Telegram Chat ID."""
     try:
+        logging.info(f"Buscando cliente con chat_id: {chat_id}")
         r = httpx.get(
             f"{SUPABASE_URL}/rest/v1/clientes",
             params={"telegram_chat_id": f"eq.{chat_id}", "activo": "eq.true"},
             headers=sb_headers()
         )
+        logging.info(f"Supabase status: {r.status_code}")
+        logging.info(f"Supabase response: {r.text[:200]}")
         data = r.json()
         return data[0] if data else None
     except Exception as e:
