@@ -306,14 +306,18 @@ async def procesar_archivo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
 
+async def log_update(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    logging.info(f"UPDATE RECIBIDO: {update}")
+
 def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start",  cmd_start))
     app.add_handler(CommandHandler("ayuda",  cmd_ayuda))
     app.add_handler(CommandHandler("resumen", cmd_resumen))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, procesar_archivo))
+    app.add_handler(MessageHandler(filters.ALL, log_update))
     logging.info("Bot Gestio iniciado - multi-cliente")
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
